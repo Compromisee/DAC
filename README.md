@@ -130,6 +130,15 @@ Your files will follow this clean, industry-standard format:
 - 🟡 Drag and drop or upload doesnt work
         - Use PATH
 
+---
+
+# Upcoming Fetures
+
+ - Movie Support
+
+
+
+
 ## 🤝 Contributing & Support
 
 Found a bug or have a feature request?
