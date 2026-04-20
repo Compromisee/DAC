@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>DAC Interface</title>
+
+<!-- Custom SVG favicon inline -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230e0e10'/><rect x='2' y='2' width='60' height='60' rx='12' fill='%2318181c' stroke='%23e8c97a' stroke-width='2'/><polygon points='10,14 10,50 18,50 18,28 32,44 46,28 46,50 54,50 54,14 46,14 32,32 18,14' fill='%23e8c97a'/></svg>">
+
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<style>
+:root{
+  --bg:#080a0c;--bg2:#0e1116;--bg3:#151a20;--bg4:#1c2229;
+  --border:#252d38;--border2:#2e3845;
+  --fg:#e4e8f0;--fg2:#8a95a3;--fg3:#4a5568;
+  --accent:#c9a96e;--accent2:#e8c97a;
+  --green:#4ade80;--red:#f87171;--blue:#60a5fa;
+  --purple:#c084fc;--yellow:#fbbf24;--cyan:#22d3ee;
+  --r:12px;--rs:6px;--shadow:0 4px 32px rgba(0,0,0,.5);
+  --glow:0 0 24px rgba(201,169,110,.08);--t:.2s cubic-bezier(.4,0,.2,1);
+}
+[data-theme="light"]{
+  --bg:#f5f3ef;--bg2:#ede9e2;--bg3:#e5e0d8;--bg4:#ddd7ce;
+  --border:#ccc5b9;--border2:#bbb2a4;
+  --fg:#1a1814;--fg2:#5a5248;--fg3:#8a8078;
+  --accent:#8b6a2e;--accent2:#a07830;
+  --green:#1a7a3c;--red:#b83030;--blue:#2060c0;
+  --purple:#7830b0;--yellow:#a06000;--cyan:#007090;
+  --shadow:0 4px 32px rgba(0,0,0,.12);--glow:0 0 24px rgba(139,106,46,.06);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--fg);min-height:100vh;overflow-x:hidden;transition:background var(--t),color var(--t)}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.02;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px}
+
+/* ── Layout ── */
+.layout{display:grid;grid-template-columns:1fr 340px;grid-template-rows:auto 1fr;min-height:100vh}
+.header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:100;backdrop-filter:blur(16px)}
+.main{padding:24px 28px;overflow-y:auto;min-height:0}
+.aside{border-left:1px solid var(--border);padding:20px 18px;overflow-y:auto;background:var(--bg2);display:flex;flex-direction:column;gap:18px}
+
+/* ── Tab bar ── */
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab-btn{padding:10px 20px;border:none;background:none;color:var(--fg2);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;transition:all var(--t);display:flex;align-items:center;gap:6px}
+.tab-btn .material-icons-round{font-size:16px}
+.tab-btn.active{color:var(--accent2);border-bottom-color:var(--accent2)}
+.tab-btn:hover:not(.active){color:var(--fg);border-bottom-color:var(--border2)}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+
+/* ── Logo ── */
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:34px;height:34px;flex-shrink:0}
+.logo-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:600;color:var(--accent2);letter-spacing:-.02em}
+.logo-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--fg3);letter-spacing:.06em}
+.header-right{display:flex;align-items:center;gap:10px}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2.5s infinite;flex-shrink:0}
+.status-dot.inactive{background:var(--fg3);box-shadow:none;animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── Icon btn ── */
+.icon-btn{background:none;border:1px solid var(--border);color:var(--fg2);border-radius:var(--rs);padding:6px 8px;cursor:pointer;display:flex;align-items:center;gap:4px;font-size:13px;font-family:'DM Sans',sans-serif;transition:all var(--t)}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(201,169,110,.06)}
+.icon-btn .material-icons-round{font-size:16px}
+
+/* ── Section title ── */
+.section-title{font-family:'Playfair Display',serif;font-size:13px;font-weight:500;color:var(--fg2);letter-spacing:.05em;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section-title .material-icons-round{font-size:15px;color:var(--accent)}
+
+/* ── Card ── */
+.card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:18px;transition:border-color var(--t),box-shadow var(--t)}
+.card:hover{border-color:var(--border2);box-shadow:var(--glow)}
+.card+.card{margin-top:14px}
+
+/* ── Tool chips ── */
+.tools-row{display:flex;gap:8px;flex-wrap:wrap}
+.tool-chip{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;font-family:'DM Mono',monospace;font-size:11px;border:1px solid var(--border)}
+.tool-chip.ok{border-color:rgba(74,222,128,.3);color:var(--green);background:rgba(74,222,128,.06)}
+.tool-chip.fail{border-color:rgba(248,113,113,.3);color:var(--red);background:rgba(248,113,113,.06)}
+.tool-chip .material-icons-round{font-size:13px}
+
+/* ── Drop zone ── */
+.dropzone{border:2px dashed var(--border2);border-radius:var(--r);padding:32px 20px;text-align:center;cursor:pointer;transition:all var(--t);position:relative;overflow:hidden}
+.dropzone::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 60%,rgba(201,169,110,.03) 100%);pointer-events:none}
+.dropzone:hover,.dropzone.drag-over{border-color:var(--accent);background:rgba(201,169,110,.04)}
+.dropzone .material-icons-round{font-size:34px;color:var(--fg3);margin-bottom:8px;display:block}
+.dropzone p{color:var(--fg2);font-size:13px;line-height:1.5}
+.dropzone p strong{color:var(--fg)}
+.dz-or{color:var(--fg3);font-size:11px;margin:6px 0}
+.dz-browse{color:var(--accent);text-decoration:underline;cursor:pointer;font-weight:500}
+#file-input{display:none}
+
+/* ── File list ── */
+.file-list{list-style:none;display:flex;flex-direction:column;gap:3px;max-height:260px;overflow-y:auto;margin-top:10px}
+.file-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--rs);background:var(--bg4);border:1px solid var(--border);font-size:12px;font-family:'DM Mono',monospace;transition:all var(--t);animation:slideIn .15s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.fi-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}
+.fi-status{font-size:10px;padding:2px 6px;border-radius:99px;flex-shrink:0}
+.fi-status.scanned{background:rgba(74,222,128,.12);color:var(--green);border:1px solid rgba(74,222,128,.2)}
+.fi-status.pending{background:rgba(138,149,163,.1);color:var(--fg3);border:1px solid var(--border)}
+.fi-del{background:none;border:none;color:var(--fg3);cursor:pointer;padding:2px;line-height:0;border-radius:4px;transition:color var(--t)}
+.fi-del:hover{color:var(--red)}
+.fi-del .material-icons-round{font-size:14px}
+.file-count{font-family:'DM Mono',monospace;font-size:11px;color:var(--fg3);margin-top:6px}
+
+/* ── Inputs ── */
+.path-input-row{display:flex;gap:8px;margin-top:8px}
+.path-input{flex:1;background:var(--bg4);border:1px solid var(--border);border-radius:var(--rs);padding:7px 10px;color:var(--fg);font-family:'DM Mono',monospace;font-size:12px;outline:none;transition:border-color var(--t)}
+.path-input:focus{border-color:var(--accent)}
+.path-input::placeholder{color:var(--fg3)}
+
+/* ── Mode tabs ── */
+.mode-tabs{display:flex;gap:0;background:var(--bg4);border:1px solid var(--border);border-radius:var(--rs);padding:3px;margin-bottom:14px}
+.mode-tab{flex:1;padding:7px 10px;border:none;background:none;color:var(--fg2);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;border-radius:4px;transition:all var(--t);display:flex;align-items:center;justify-content:center;gap:5px}
+.mode-tab .material-icons-round{font-size:14px}
+.mode-tab.active{background:var(--bg2);color:var(--accent2);box-shadow:0 1px 8px rgba(0,0,0,.3)}
+
+/* ── Track options ── */
+.track-group{margin-bottom:12px}
+.track-group-label{font-size:11px;color:var(--fg3);font-family:'DM Mono',monospace;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:5px}
+.track-group-label .material-icons-round{font-size:13px;color:var(--accent)}
+.track-list{display:flex;flex-direction:column;gap:3px}
+.track-option{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:var(--rs);border:1px solid var(--border);cursor:pointer;transition:all var(--t);font-size:12px;font-family:'DM Mono',monospace}
+.track-option:hover{border-color:var(--border2);background:var(--bg4)}
+.track-option.selected{border-color:var(--accent);background:rgba(201,169,110,.06);color:var(--accent2)}
+.track-radio{width:13px;height:13px;border-radius:50%;border:2px solid var(--border2);flex-shrink:0;transition:all var(--t);position:relative}
+.track-option.selected .track-radio{border-color:var(--accent);background:var(--accent)}
+.track-option.selected .track-radio::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:4px;height:4px;border-radius:50%;background:var(--bg)}
+.track-badge{font-size:10px;padding:1px 6px;border-radius:99px;margin-left:auto;flex-shrink:0}
+.track-badge.common{background:rgba(74,222,128,.1);color:var(--green)}
+.track-badge.partial{background:rgba(192,132,252,.1);color:var(--purple)}
+
+/* ── Toggle ── */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:13px}
+.toggle{position:relative;width:34px;height:19px;cursor:pointer}
+.toggle input{display:none}
+.toggle-bg{position:absolute;inset:0;background:var(--bg4);border:1px solid var(--border2);border-radius:99px;transition:all var(--t)}
+.toggle input:checked~.toggle-bg{background:var(--accent);border-color:var(--accent)}
+.toggle-dot{position:absolute;top:2px;left:2px;width:13px;height:13px;background:#fff;border-radius:50%;transition:transform var(--t);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.toggle input:checked~.toggle-bg~.toggle-dot{transform:translateX(15px)}
+
+/* ── Progress ── */
+.progress-wrap{margin:8px 0}
+.progress-bar-bg{height:3px;background:var(--bg4);border-radius:99px;overflow:hidden}
+.progress-bar-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .3s ease;position:relative;overflow:hidden;box-shadow:0 0 8px rgba(201,169,110,.4)}
+.progress-bar-fill::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent);animation:shimmer 1.5s infinite}
+@keyframes shimmer{from{transform:translateX(-100%)}to{transform:translateX(200%)}}
+.progress-text{font-family:'DM Mono',monospace;font-size:11px;color:var(--fg3);margin-top:4px;display:flex;justify-content:space-between}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--rs);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all var(--t);border:none;outline:none}
+.btn .material-icons-round{font-size:16px}
+.btn-primary{background:var(--accent);color:#0e0e10}
+.btn-primary:hover{background:var(--accent2);box-shadow:0 0 20px rgba(201,169,110,.3)}
+.btn-secondary{background:var(--bg4);border:1px solid var(--border2);color:var(--fg)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.btn-danger{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:var(--red)}
+.btn-danger:hover{background:rgba(248,113,113,.2)}
+.btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+.btn-group{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ── Log ── */
+.log-wrap{flex:1;min-height:0;display:flex;flex-direction:column}
+.log-inner{flex:1;overflow-y:auto;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:10px;min-height:140px;font-family:'DM Mono',monospace;font-size:11px;line-height:1.7}
+.log-entry{display:flex;gap:8px;animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.log-time{color:var(--fg3);flex-shrink:0;min-width:52px}
+.log-msg{color:var(--fg2);word-break:break-word}
+.log-msg.green{color:var(--green)}.log-msg.red{color:var(--red)}.log-msg.cyan{color:var(--cyan)}
+.log-msg.yellow{color:var(--yellow)}.log-msg.purple{color:var(--purple)}.log-msg.blue{color:var(--blue)}
+
+/* ── Stats ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+.stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;transition:border-color var(--t)}
+.stat-card:hover{border-color:var(--border2)}
+.stat-val{font-family:'Playfair Display',serif;font-size:26px;font-weight:600;color:var(--accent2);line-height:1;margin-bottom:4px}
+.stat-label{font-size:11px;color:var(--fg3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.05em}
+
+/* ── Results table ── */
+.results-table{width:100%;border-collapse:collapse;font-size:12px;font-family:'DM Mono',monospace}
+.results-table th{padding:7px 9px;text-align:left;color:var(--fg3);font-weight:400;border-bottom:1px solid var(--border);letter-spacing:.04em;font-size:10px;text-transform:uppercase}
+.results-table td{padding:6px 9px;border-bottom:1px solid var(--border);color:var(--fg2);vertical-align:middle}
+.results-table tr:hover td{background:var(--bg4)}
+.status-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:99px;font-size:10px}
+.pill-full{background:rgba(74,222,128,.1);color:var(--green);border:1px solid rgba(74,222,128,.2)}
+.pill-partial{background:rgba(192,132,252,.1);color:var(--purple);border:1px solid rgba(192,132,252,.2)}
+.pill-skipped,.pill-no_english{background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.2)}
+.pill-failed{background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.3)}
+.pill-no_sub,.pill-no_audio{background:rgba(251,191,36,.1);color:var(--yellow);border:1px solid rgba(251,191,36,.2)}
+
+/* ── Charts ── */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.chart-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:16px;position:relative}
+.chart-title{font-family:'DM Mono',monospace;font-size:11px;color:var(--fg3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+canvas.chart{display:block;width:100%;height:180px}
+
+/* ── Tooltip ── */
+.chart-tooltip{position:fixed;background:var(--bg4);color:var(--fg);padding:6px 12px;border-radius:var(--rs);font-family:'DM Mono',monospace;font-size:12px;border:1px solid var(--border2);pointer-events:none;z-index:500;display:none;box-shadow:var(--shadow)}
+
+/* ── TV Renamer Tab ── */
+.tv-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.tv-shows-list{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;margin-bottom:14px}
+.tv-show-row{background:var(--bg4);border:1px solid var(--border);border-radius:var(--rs);padding:10px 14px;display:flex;align-items:center;gap:10px;transition:border-color var(--t)}
+.tv-show-row:hover{border-color:var(--border2)}
+.tv-show-name{font-weight:500;font-size:13px;min-width:160px;flex-shrink:0}
+.tv-show-count{font-family:'DM Mono',monospace;font-size:11px;color:var(--fg3);min-width:60px;flex-shrink:0}
+.tv-show-status{width:24px;text-align:center;flex-shrink:0;font-size:14px}
+.tv-show-select{flex:1;min-width:240px;background:var(--bg3);border:1px solid var(--border);color:var(--fg);font-family:'DM Mono',monospace;font-size:11px;padding:5px 8px;border-radius:var(--rs);outline:none;cursor:pointer;transition:border-color var(--t)}
+.tv-show-select:focus{border-color:var(--accent)}
+.tv-search-input{background:var(--bg4);border:1px solid var(--border);border-radius:var(--rs);padding:5px 10px;color:var(--fg);font-family:'DM Mono',monospace;font-size:11px;width:130px;outline:none;transition:border-color var(--t)}
+.tv-search-input:focus{border-color:var(--accent)}
+.tv-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+
+/* ── Spin ── */
+.spin-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg2)}
+.spin-row label{min-width:90px;font-family:'DM Mono',monospace;font-size:11px;color:var(--fg3)}
+.spin-input{width:52px;background:var(--bg4);border:1px solid var(--border2);border-radius:var(--rs);padding:4px 8px;color:var(--fg);font-family:'DM Mono',monospace;font-size:12px;text-align:center;outline:none;transition:border-color var(--t)}
+.spin-input:focus{border-color:var(--accent)}
+
+hr{border:none;border-top:1px solid var(--border);margin:14px 0}
+.empty{display:flex;flex-direction:column;align-items:center;padding:36px 16px;color:var(--fg3);text-align:center;gap:8px}
+.empty .material-icons-round{font-size:36px;opacity:.3}
+.empty p{font-size:13px}
+.fade-up{opacity:0;transform:translateY(12px);animation:fadeUp .4s ease forwards}
+@keyframes fadeUp{to{opacity:1;transform:none}}
+.d1{animation-delay:.05s}.d2{animation-delay:.1s}.d3{animation-delay:.15s}.d4{animation-delay:.2s}.d5{animation-delay:.25s}
+@media(max-width:900px){.layout{grid-template-columns:1fr;grid-template-rows:auto auto auto}.aside{border-left:none;border-top:1px solid var(--border)}.stats,.charts-grid{grid-template-columns:repeat(2,1fr)}.main,.aside{padding:16px}}
+</style>
+</head>
+<body>
+<div id="chart-tooltip" class="chart-tooltip"></div>
+<div class="layout">
+
+<!-- ══ HEADER ══ -->
+<header class="header">
+  <div class="logo">
+    <!-- Custom SVG logo in header -->
+    <svg class="logo-icon" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <rect width="64" height="64" rx="14" fill="var(--bg3)"/>
+      <rect x="2" y="2" width="60" height="60" rx="12" fill="var(--bg2)" stroke="var(--accent2)" stroke-width="2"/>
+      <polygon points="10,14 10,50 18,50 18,28 32,44 46,28 46,50 54,50 54,14 46,14 32,32 18,14" fill="var(--accent2)"/>
+    </svg>
+    <div>
+      <div class="logo-title">DAC</div>
+      <div class="logo-sub">v1.0 <span style="
+    background-color: rgba(74, 222, 128, 0.1);
+    color: rgb(74, 222, 128);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    padding: 4px 8px;
+    border-radius: 16px;
+    text-shadow: 0 0 5px rgba(74, 222, 128, 0.6);
+    display: inline-block;
+    font-size: 8px;
+">
+    <i>full</i>
+</span> · Universal · TV Renamer</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span id="srv-dot" class="status-dot inactive"></span>
+    <span id="srv-label" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--fg3)">connecting…</span>
+    <button class="icon-btn" onclick="toggleTheme()"><span class="material-icons-round" id="theme-icon">light_mode</span></button>
+    <button class="icon-btn" onclick="refreshStatus()"><span class="material-icons-round">refresh</span></button>
+  </div>
+</header>
+
+<!-- ══ MAIN ══ -->
+<main class="main">
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('mkv',this)">
+      <span class="material-icons-round">movie</span>Default Audio Changer
+    </button>
+    <button class="tab-btn" onclick="showTab('tv',this)">
+      <span class="material-icons-round">live_tv</span>TV Show Renamer
+    </button>
+    <button class="tab-btn" onclick="showTab('charts',this)">
+      <span class="material-icons-round">bar_chart</span>Analytics
+    </button>
+  </div>
+
+  <!-- ══ MKV TAB ══ -->
+  <div id="tab-mkv" class="tab-pane active">
+
+    <div class="stats fade-up">
+      <div class="stat-card"><div class="stat-val" id="stat-files">0</div><div class="stat-label">Files Queued</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-scanned">0</div><div class="stat-label">Scanned</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-results">0</div><div class="stat-label">Processed</div></div>
+      <div class="stat-card"><div class="stat-val" id="stat-rate" style="font-size:18px">—</div><div class="stat-label">Files / sec</div></div>
+    </div>
+
+    <div class="card fade-up d1">
+      <div class="section-title"><span class="material-icons-round">folder_open</span>Input Files</div>
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('file-input').click()">
+        <span class="material-icons-round">upload_file</span>
+        <p><strong>Drop MKV files here</strong></p>
+        <p class="dz-or">or</p>
+        <p><span class="dz-browse">browse files</span></p>
+      </div>
+      <input type="file" id="file-input" multiple accept=".mkv">
+      <div class="path-input-row">
+        <input class="path-input" id="folder-path" placeholder="/path/to/folder  (add all MKVs recursively)">
+        <button class="btn btn-secondary" onclick="addFolder()">
+          <span class="material-icons-round">create_new_folder</span>Add Folder
+        </button>
+      </div>
+      <ul class="file-list" id="file-list"></ul>
+      <div class="file-count" id="file-count">No files loaded</div>
+      <div class="btn-group" style="margin-top:10px">
+        <button class="btn btn-secondary" onclick="doScan()"><span class="material-icons-round">search</span>Scan Tracks</button>
+        <button class="btn btn-danger" onclick="clearFiles()"><span class="material-icons-round">delete_sweep</span>Clear All</button>
+      </div>
+      <div class="progress-wrap" id="scan-progress-wrap" style="display:none">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="scan-bar" style="width:0%"></div></div>
+        <div class="progress-text"><span id="scan-prog-txt">Scanning…</span><span id="scan-rate-txt"></span></div>
+      </div>
+    </div>
+
+    <div class="card fade-up d2">
+      <div class="section-title"><span class="material-icons-round">tune</span>Track Configuration</div>
+      <div class="mode-tabs">
+        <button class="mode-tab active" id="tab-manual" onclick="setMode('manual')">
+          <span class="material-icons-round">list_alt</span>Manual
+        </button>
+        <button class="mode-tab" id="tab-auto" onclick="setMode('auto_english')">
+          <span class="material-icons-round">auto_awesome</span>Auto English
+        </button>
+      </div>
+      <div id="manual-config">
+        <div class="track-group">
+          <div class="track-group-label"><span class="material-icons-round">volume_up</span>Audio Track</div>
+          <div class="track-list" id="audio-track-list">
+            <div class="empty" style="padding:14px"><span class="material-icons-round" style="font-size:20px">search</span><p>Scan files first</p></div>
+          </div>
+        </div>
+        <div class="track-group">
+          <div class="track-group-label"><span class="material-icons-round">subtitles</span>Subtitle Track</div>
+          <div class="track-list" id="sub-track-list">
+            <div class="empty" style="padding:14px"><span class="material-icons-round" style="font-size:20px">search</span><p>Scan files first</p></div>
+          </div>
+        </div>
+      </div>
+      <div id="auto-config" style="display:none">
+        <div class="card" style="background:var(--bg4);border-color:rgba(34,211,238,.2)">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <span class="material-icons-round" style="color:var(--cyan);margin-top:2px">info</span>
+            <div style="font-size:12px;line-height:1.7;color:var(--fg2)">
+              <strong style="color:var(--fg)">Auto English Mode</strong> — auto-detects English tracks, sorts files:<br>
+              <span style="color:var(--cyan);font-family:'DM Mono',monospace">/NoEngAudio  /NoEngSub  /NoEnglish</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card fade-up d3">
+      <div class="section-title"><span class="material-icons-round">output</span>Output Options</div>
+      <div class="toggle-row">
+        <span style="font-size:13px">Move processed files to output folder</span>
+        <label class="toggle"><input type="checkbox" id="move-toggle" onchange="updateSettings()"><div class="toggle-bg"></div><div class="toggle-dot"></div></label>
+      </div>
+      <div id="output-folder-row" style="display:none">
+        <div class="path-input-row" style="margin-top:6px">
+          <input class="path-input" id="output-folder" placeholder="/path/to/output" oninput="updateSettings()">
+        </div>
+      </div>
+    </div>
+
+    <div class="card fade-up d4">
+      <div class="section-title"><span class="material-icons-round">play_arrow</span>Process</div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-process" onclick="doProcess(false)">
+          <span class="material-icons-round">rocket_launch</span>Start Processing
+        </button>
+        <button class="btn btn-secondary" id="btn-dry" onclick="doProcess(true)">
+          <span class="material-icons-round">preview</span>Dry Run
+        </button>
+      </div>
+      <div class="progress-wrap" id="proc-progress-wrap" style="display:none;margin-top:12px">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="proc-bar" style="width:0%"></div></div>
+        <div class="progress-text"><span id="proc-prog-txt">Processing…</span><span id="proc-rate-txt"></span></div>
+      </div>
+    </div>
+
+    <div class="card fade-up d5" id="results-card" style="display:none">
+      <div class="section-title"><span class="material-icons-round">checklist</span>Results</div>
+      <div style="overflow-x:auto">
+        <table class="results-table">
+          <thead><tr><th>File</th><th>Status</th><th>Message</th></tr></thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /tab-mkv -->
+
+  <!-- ══ TV TAB ══ -->
+  <div id="tab-tv" class="tab-pane">
+    <div class="card">
+      <div class="tv-header">
+        <div class="section-title" style="margin-bottom:0"><span class="material-icons-round">live_tv</span>TV Show Renamer</div>
+        <input class="path-input" id="tv-folder" placeholder="/path/to/tv/shows" style="flex:1;min-width:180px">
+        <button class="btn btn-secondary" onclick="tvScanFolder()"><span class="material-icons-round">search</span>Scan Folder</button>
+      </div>
+      <div class="progress-wrap" id="tv-scan-progress" style="display:none">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="tv-scan-bar" style="width:100%;animation:shimmer 1.5s infinite"></div></div>
+        <div class="progress-text"><span>Scanning files…</span></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="section-title"><span class="material-icons-round">format_list_bulleted</span>Detected Shows</div>
+      <div class="tv-shows-list" id="tv-shows-list">
+        <div class="empty"><span class="material-icons-round">folder_open</span><p>Scan a TV shows folder to begin</p></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="section-title"><span class="material-icons-round">settings</span>Options</div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="tv-dry" checked style="accent-color:var(--accent)"> Dry Run
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="tv-airdate" checked style="accent-color:var(--accent)"> Include Airdate
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="tv-abs" checked style="accent-color:var(--accent)"> Absolute # (anime)
+        </label>
+      </div>
+      <div class="btn-group" style="margin-top:12px">
+        <button class="btn btn-secondary" onclick="tvLoadEpisodes()">
+          <span class="material-icons-round">download</span>Load Episodes
+        </button>
+        <button class="btn btn-primary" id="btn-tv-rename" onclick="tvRename()">
+          <span class="material-icons-round">drive_file_rename_outline</span>Start Rename
+        </button>
+      </div>
+    </div>
+
+    <div class="tv-stats">
+      <div class="stat-card"><div class="stat-val" id="tv-stat-renamed" style="color:var(--green)">0</div><div class="stat-label">Renamed</div></div>
+      <div class="stat-card"><div class="stat-val" id="tv-stat-skipped" style="color:var(--yellow)">0</div><div class="stat-label">Skipped</div></div>
+      <div class="stat-card"><div class="stat-val" id="tv-stat-errors" style="color:var(--red)">0</div><div class="stat-label">Errors</div></div>
+    </div>
+  </div><!-- /tab-tv -->
+
+  <!-- ══ CHARTS TAB ══ -->
+  <div id="tab-charts" class="tab-pane">
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Processing Results</div>
+        <canvas id="chart-results" class="chart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Scan Rate Over Time</div>
+        <canvas id="chart-scan-rate" class="chart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Files by Status</div>
+        <canvas id="chart-status" class="chart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Audio vs Subtitle Matches</div>
+        <canvas id="chart-tracks" class="chart"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title"><span class="material-icons-round">info</span>Session Summary</div>
+      <div id="chart-summary" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--fg2);line-height:2">
+        No data yet — process some files to see analytics.
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ══ ASIDE ══ -->
+<aside class="aside">
+  <div class="fade-up">
+    <div class="section-title" style="margin-bottom:8px"><span class="material-icons-round">build</span>Tools</div>
+    <div class="tools-row" id="tools-row"><div class="tool-chip">loading…</div></div>
+  </div>
+  <hr>
+  <div class="fade-up d1">
+    <div class="section-title" style="margin-bottom:8px"><span class="material-icons-round">settings</span>Workers</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="spin-row"><label>Scan workers</label><input type="number" class="spin-input" id="scan-workers" min="1" max="64" value="16" onchange="updateSettings()"></div>
+      <div class="spin-row"><label>Process workers</label><input type="number" class="spin-input" id="proc-workers" min="1" max="64" value="8" onchange="updateSettings()"></div>
+    </div>
+  </div>
+  <hr>
+  <div class="log-wrap fade-up d2">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="section-title" style="margin-bottom:0"><span class="material-icons-round">terminal</span>Log</div>
+      <button class="icon-btn" onclick="clearLog()"><span class="material-icons-round">clear_all</span></button>
+    </div>
+    <div class="log-inner" id="log-inner"></div>
+  </div>
+</aside>
+</div><!-- /layout -->
+
+<script>
+// ═══════════════════════════════════
+//  STATE
+// ═══════════════════════════════════
+let status={}, logOffset=0, selAudio='', selSub='', mode='manual';
+let chartData={results:[],scanRates:[],statusCounts:{},trackStats:{audio:0,sub:0,both:0,neither:0}};
+let tvShows={}, tvMatches={}, tvEpisodes={};
+let sessionRenamed=0, sessionSkipped=0, sessionErrors=0;
+
+// ═══════════════════════════════════
+//  THEME
+// ═══════════════════════════════════
+function toggleTheme(){
+  const d=document.documentElement.dataset.theme==='dark';
+  document.documentElement.dataset.theme=d?'light':'dark';
+  document.getElementById('theme-icon').textContent=d?'dark_mode':'light_mode';
+  localStorage.setItem('theme',d?'light':'dark');
+  drawAllCharts();
+}
+(function(){
+  const t=localStorage.getItem('theme')||'dark';
+  document.documentElement.dataset.theme=t;
+  const el=document.getElementById('theme-icon');
+  if(el) el.textContent=t==='dark'?'light_mode':'dark_mode';
+})();
+
+function getCSSVar(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+
+// ═══════════════════════════════════
+//  TABS
+// ═══════════════════════════════════
+function showTab(name, btn){
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+  if(name==='charts') { setTimeout(drawAllCharts,50); }
+}
+
+// ═══════════════════════════════════
+//  API
+// ═══════════════════════════════════
+async function api(method, endpoint, body){
+  try{
+    const r=await fetch(endpoint,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+    return await r.json();
+  }catch(e){console.error(endpoint,e);return null;}
+}
+
+// ═══════════════════════════════════
+//  STATUS POLLING
+// ═══════════════════════════════════
+async function refreshStatus(){
+  const s=await api('GET','/api/status');
+  if(!s){
+    document.getElementById('srv-dot').className='status-dot inactive';
+    document.getElementById('srv-label').textContent='offline';
+    return;
+  }
+  status=s;
+  document.getElementById('srv-dot').className='status-dot';
+  document.getElementById('srv-label').textContent=s.tools.version?s.tools.version.split(' ')[0]+' ready':'server online';
+  document.getElementById('stat-files').textContent=s.file_count;
+  document.getElementById('stat-scanned').textContent=s.scanned;
+  document.getElementById('stat-results').textContent=(s.results||[]).length||0;
+
+  const sp=s.scan_progress, spw=document.getElementById('scan-progress-wrap');
+  if(sp.active||sp.done>0){
+    spw.style.display='block';
+    const pct=sp.total>0?Math.round(sp.done/sp.total*100):0;
+    document.getElementById('scan-bar').style.width=pct+'%';
+    document.getElementById('scan-prog-txt').textContent=`${sp.done}/${sp.total} (${pct}%)`;
+    document.getElementById('scan-rate-txt').textContent=sp.rate?sp.rate+' f/s':'';
+    if(sp.rate) chartData.scanRates.push({t:new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'}),v:sp.rate});
+    if(!sp.active&&sp.done===sp.total) setTimeout(()=>spw.style.display='none',3000);
+  }
+
+  const pp=s.proc_progress, ppw=document.getElementById('proc-progress-wrap');
+  if(pp.active||pp.done>0){
+    ppw.style.display='block';
+    const pct=pp.total>0?Math.round(pp.done/pp.total*100):0;
+    document.getElementById('proc-bar').style.width=pct+'%';
+    document.getElementById('proc-prog-txt').textContent=`${pp.done}/${pp.total} (${pct}%)`;
+    document.getElementById('proc-rate-txt').textContent=pp.rate?pp.rate+' f/s':'';
+    document.getElementById('stat-rate').textContent=pp.rate||'—';
+    if(!pp.active) setTimeout(()=>ppw.style.display='none',3000);
+  }
+
+  document.getElementById('btn-process').disabled=s.processing;
+  document.getElementById('btn-dry').disabled=s.processing;
+  renderFileList(s.files);
+  renderTrackList('audio-track-list',s.audio_tracks,'audio');
+  renderTrackList('sub-track-list',s.sub_tracks,'sub');
+  renderTools(s.tools);
+  document.getElementById('scan-workers').value=s.scan_workers;
+  document.getElementById('proc-workers').value=s.proc_workers;
+  if(s.mode!==mode) setMode(s.mode,false);
+  selAudio=s.selected_audio; selSub=s.selected_sub;
+  syncTrackSelections();
+  document.getElementById('move-toggle').checked=s.move_files;
+  document.getElementById('output-folder-row').style.display=s.move_files?'block':'none';
+  if(s.output_folder&&!document.getElementById('output-folder').value)
+    document.getElementById('output-folder').value=s.output_folder;
+  updateChartData(s);
+}
+
+function updateChartData(s){
+  if(!s.results||!s.results.length) return;
+  const counts={};
+  s.results.forEach(r=>{ counts[r.status]=(counts[r.status]||0)+1; });
+  chartData.statusCounts=counts;
+  const results=[];
+  for(const[k,v] of Object.entries(counts)) results.push({label:k,value:v});
+  chartData.results=results;
+}
+
+// ═══════════════════════════════════
+//  RENDER HELPERS
+// ═══════════════════════════════════
+function renderFileList(files){
+  const ul=document.getElementById('file-list');
+  const existing=new Set([...ul.querySelectorAll('[data-path]')].map(e=>e.dataset.path));
+  const newPaths=new Set(files.map(f=>f.path));
+  [...ul.querySelectorAll('[data-path]')].forEach(el=>{if(!newPaths.has(el.dataset.path))el.remove();});
+  files.forEach(f=>{
+    if(existing.has(f.path)){
+      const el=ul.querySelector(`[data-path="${CSS.escape(f.path)}"]`);
+      if(el){const b=el.querySelector('.fi-status');b.className='fi-status '+(f.scanned?'scanned':'pending');b.textContent=f.scanned?'scanned':'pending';}
+      return;
+    }
+    const li=document.createElement('li');li.className='file-item';li.dataset.path=f.path;
+    li.innerHTML=`<span class="material-icons-round" style="font-size:14px;color:var(--fg3);flex-shrink:0">video_file</span>
+      <span class="fi-name" title="${f.path}">${f.name}</span>
+      <span class="fi-status ${f.scanned?'scanned':'pending'}">${f.scanned?'scanned':'pending'}</span>
+      <button class="fi-del" onclick="removeFile('${f.path.replace(/'/g,"\\'")}')">
+        <span class="material-icons-round">close</span></button>`;
+    ul.appendChild(li);
+  });
+  const n=files.length;
+  document.getElementById('file-count').textContent=n===0?'No files loaded':`${n} file${n!==1?'s':''} queued`;
+}
+
+function renderTrackList(containerId,tracks,kind){
+  const container=document.getElementById(containerId);
+  if(!tracks||!tracks.length){
+    if(!container.querySelector('.empty'))
+      container.innerHTML=`<div class="empty" style="padding:12px"><span class="material-icons-round" style="font-size:18px">search</span><p>Scan to see ${kind} tracks</p></div>`;
+    return;
+  }
+  const existing=container.querySelectorAll('.track-option');
+  if(existing.length===tracks.length+1) return;
+  const sel=kind==='audio'?selAudio:selSub;
+  let html=`<label class="track-option ${sel===''?'selected':''}" onclick="selectTrack('${kind}','')">
+    <div class="track-radio"></div><span style="color:var(--fg3)">No change</span></label>`;
+  const common=tracks.filter(t=>t.common), partial=tracks.filter(t=>!t.common);
+  if(common.length){
+    html+=`<div style="font-size:10px;color:var(--fg3);font-family:'DM Mono',monospace;padding:5px 4px 2px;text-transform:uppercase;letter-spacing:.05em">In all files</div>`;
+    common.forEach(t=>{const sel2=sel===t.key;html+=`<label class="track-option ${sel2?'selected':''}" onclick="selectTrack('${kind}','${t.key.replace(/'/g,"\\'")}')"><div class="track-radio"></div><span>${t.label}</span><span class="track-badge common">all</span></label>`;});
+  }
+  if(partial.length){
+    html+=`<div style="font-size:10px;color:var(--fg3);font-family:'DM Mono',monospace;padding:5px 4px 2px;text-transform:uppercase;letter-spacing:.05em">Partial</div>`;
+    partial.forEach(t=>{const sel2=sel===t.key;html+=`<label class="track-option ${sel2?'selected':''}" onclick="selectTrack('${kind}','${t.key.replace(/'/g,"\\'")}')"><div class="track-radio"></div><span>${t.label}</span><span class="track-badge partial">${t.count}/${status.scanned||'?'}</span></label>`;});
+  }
+  container.innerHTML=html;
+}
+
+function syncTrackSelections(){
+  document.querySelectorAll('#audio-track-list .track-option').forEach(el=>{
+    const m=el.getAttribute('onclick').match(/'([^']*)'\)$/); const key=m?m[1]:'';
+    el.classList.toggle('selected',key===selAudio);
+  });
+  document.querySelectorAll('#sub-track-list .track-option').forEach(el=>{
+    const m=el.getAttribute('onclick').match(/'([^']*)'\)$/); const key=m?m[1]:'';
+    el.classList.toggle('selected',key===selSub);
+  });
+}
+
+function renderTools(tools){
+  const row=document.getElementById('tools-row');
+  const chips=[];
+  for(const[name,path] of [['mkvmerge',tools.mkvmerge],['mkvpropedit',tools.mkvpropedit]]){
+    chips.push(`<div class="tool-chip ${path?'ok':'fail'}"><span class="material-icons-round">${path?'check':'close'}</span>${name}</div>`);
+  }
+  row.innerHTML=chips.join('');
+}
+
+// ═══════════════════════════════════
+//  MKV OPERATIONS
+// ═══════════════════════════════════
+async function selectTrack(kind,key){
+  if(kind==='audio') selAudio=key; else selSub=key;
+  const body={}; if(kind==='audio') body.selected_audio=key; else body.selected_sub=key;
+  await api('PATCH','/api/settings',body); syncTrackSelections();
+}
+async function setMode(m,send=true){
+  mode=m;
+  document.getElementById('tab-manual').classList.toggle('active',m==='manual');
+  document.getElementById('tab-auto').classList.toggle('active',m==='auto_english');
+  document.getElementById('manual-config').style.display=m==='manual'?'block':'none';
+  document.getElementById('auto-config').style.display=m==='auto_english'?'block':'none';
+  if(send) await api('PATCH','/api/settings',{mode:m});
+}
+async function updateSettings(){
+  const move=document.getElementById('move-toggle').checked;
+  document.getElementById('output-folder-row').style.display=move?'block':'none';
+  await api('PATCH','/api/settings',{
+    move_files:move, output_folder:document.getElementById('output-folder').value,
+    scan_workers:parseInt(document.getElementById('scan-workers').value),
+    proc_workers:parseInt(document.getElementById('proc-workers').value)
+  });
+}
+async function addFolder(){
+  const folder=document.getElementById('folder-path').value.trim(); if(!folder) return;
+  const r=await api('POST','/api/files/add_folder',{folder});
+  if(r&&r.error) addLogEntry({t:timeNow(),msg:'Error: '+r.error,color:'red'});
+  else if(r) addLogEntry({t:timeNow(),msg:`Added ${r.added} file(s)`,color:'green'});
+  document.getElementById('folder-path').value=''; refreshStatus();
+}
+async function removeFile(path){ await api('POST','/api/files/remove',{paths:[path]}); refreshStatus(); }
+async function clearFiles(){ await api('POST','/api/files/clear'); document.getElementById('file-list').innerHTML=''; refreshStatus(); }
+async function doScan(){ const r=await api('POST','/api/scan',{workers:parseInt(document.getElementById('scan-workers').value)||16}); if(r&&r.error) addLogEntry({t:timeNow(),msg:'Scan error: '+r.error,color:'red'}); document.getElementById('scan-progress-wrap').style.display='block'; }
+async function doProcess(dry){
+  const r=await api('POST','/api/process',{dry,mode,selected_audio:selAudio,selected_sub:selSub,
+    output_folder:document.getElementById('output-folder').value,
+    move_files:document.getElementById('move-toggle').checked,
+    workers:parseInt(document.getElementById('proc-workers').value)});
+  if(r&&r.error) addLogEntry({t:timeNow(),msg:'Error: '+r.error,color:'red'});
+  else { document.getElementById('proc-progress-wrap').style.display='block'; pollResults(); }
+}
+async function pollResults(){
+  await new Promise(r=>setTimeout(r,2000));
+  const r=await api('GET','/api/results');
+  if(!r||!r.results.length) return;
+  renderResults(r.results); updateChartData({results:r.results});
+  if(status.processing) setTimeout(pollResults,2000);
+}
+function renderResults(results){
+  if(!results.length) return;
+  document.getElementById('results-card').style.display='block';
+  const tbody=document.getElementById('results-body'); tbody.innerHTML='';
+  results.forEach(r=>{
+    const pc='pill-'+(r.status||'unknown');
+    tbody.innerHTML+=`<tr>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.name}">${r.name}</td>
+      <td><span class="status-pill ${pc}">${r.status||'?'}</span></td>
+      <td style="color:var(--fg3)">${r.msg||''}</td></tr>`;
+  });
+}
+
+// D&D
+const dz=document.getElementById('dropzone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop',async e=>{
+  e.preventDefault(); dz.classList.remove('drag-over');
+  const paths=[]; for(const item of e.dataTransfer.items){if(item.kind==='file'){const f=item.getAsFile(); if(f&&f.name.endsWith('.mkv')&&f.path) paths.push(f.path);}}
+  if(paths.length){const r=await api('POST','/api/files/add',{paths}); if(r) addLogEntry({t:timeNow(),msg:`Added ${r.added}`,color:'green'}); refreshStatus();}
+});
+
+// ═══════════════════════════════════
+//  TV RENAMER
+// ═══════════════════════════════════
+async function tvScanFolder(){
+  const folder=document.getElementById('tv-folder').value.trim();
+  if(!folder){addLogEntry({t:timeNow(),msg:'Enter a folder path first',color:'red'});return;}
+  document.getElementById('tv-scan-progress').style.display='block';
+  document.getElementById('tv-shows-list').innerHTML='<div class="empty"><span class="material-icons-round">hourglass_empty</span><p>Scanning…</p></div>';
+  const r=await api('POST','/api/tv/scan_folder',{folder});
+  document.getElementById('tv-scan-progress').style.display='none';
+  if(!r||r.error){addLogEntry({t:timeNow(),msg:'TV scan error: '+(r&&r.error?r.error:'unknown'),color:'red'});return;}
+  // Group by show
+  const shows={};
+  r.files.forEach(f=>{
+    const sn=f.show||(f.rel==='.'?'Unknown':f.rel.split(/[\\/]/)[0]);
+    if(!shows[sn]) shows[sn]={name:sn,files:[],matched:false,results:[]};
+    shows[sn].files.push(f);
+  });
+  tvShows=shows; renderTVShows();
+  addLogEntry({t:timeNow(),msg:`TV scan: ${r.count} files, ${Object.keys(shows).length} shows`,color:'green'});
+  // Auto-search each show
+  for(const [sn,data] of Object.entries(shows)){
+    autoSearchShow(sn,data.name);
+    await new Promise(r=>setTimeout(r,120));
+  }
+}
+
+function renderTVShows(){
+  const list=document.getElementById('tv-shows-list'); list.innerHTML='';
+  if(!Object.keys(tvShows).length){
+    list.innerHTML='<div class="empty"><span class="material-icons-round">folder_open</span><p>No shows found</p></div>'; return;
+  }
+  for(const[sn,data] of Object.entries(tvShows)){
+    const row=document.createElement('div'); row.className='tv-show-row'; row.id='tv-row-'+encodeKey(sn);
+    row.innerHTML=`
+      <span class="tv-show-name" title="${sn}">${sn.length>22?sn.slice(0,20)+'…':sn}</span>
+      <span class="tv-show-count">${data.files.length} files</span>
+      <span class="tv-show-status" id="tv-status-${encodeKey(sn)}">⏳</span>
+      <select class="tv-show-select" id="tv-select-${encodeKey(sn)}" onchange="tvOnSelect('${escAttr(sn)}',this.value)">
+        <option>Searching…</option>
+      </select>
+      <input class="tv-search-input" placeholder="Custom search" id="tv-sinput-${encodeKey(sn)}"
+             onkeydown="if(event.key==='Enter')tvManualSearch('${escAttr(sn)}')">
+      <button class="btn btn-secondary" style="padding:5px 10px;font-size:12px" onclick="tvManualSearch('${escAttr(sn)}')">
+        <span class="material-icons-round" style="font-size:14px">search</span>
+      </button>`;
+    list.appendChild(row);
+  }
+}
+
+function encodeKey(s){return s.replace(/[^a-zA-Z0-9]/g,'_')}
+function escAttr(s){return s.replace(/'/g,"\\'").replace(/"/g,'&quot;')}
+
+async function autoSearchShow(sn, displayName){
+  const r=await api('POST','/api/tv/search',{query:displayName});
+  if(!r||r.error||!r.results.length){
+    const el=document.getElementById('tv-status-'+encodeKey(sn));
+    if(el) el.textContent='✗';
+    const sel=document.getElementById('tv-select-'+encodeKey(sn));
+    if(sel){sel.innerHTML='<option>No results — search manually</option>';}
+    return;
+  }
+  populateTVSelect(sn, r.results);
+}
+
+function populateTVSelect(sn, results){
+  const sel=document.getElementById('tv-select-'+encodeKey(sn));
+  const sta=document.getElementById('tv-status-'+encodeKey(sn));
+  if(!sel) return;
+  sel.innerHTML='';
+  results.forEach(r=>{
+    const opt=document.createElement('option');
+    opt.value=JSON.stringify({id:r.id,name:r.name,year:r.year});
+    opt.textContent=r.label;
+    sel.appendChild(opt);
+  });
+  const skip=document.createElement('option'); skip.value='skip'; skip.textContent='— SKIP THIS SHOW —';
+  sel.appendChild(skip);
+  if(sta) sta.textContent='✓';
+  tvOnSelect(sn, sel.value);
+}
+
+function tvOnSelect(sn, val){
+  if(val==='skip'){delete tvMatches[sn]; return;}
+  try{
+    const d=JSON.parse(val);
+    tvMatches[sn]={id:d.id,name:d.name,year:d.year,episodes:null};
+    const sta=document.getElementById('tv-status-'+encodeKey(sn));
+    if(sta) sta.textContent='✓';
+  }catch(e){}
+}
+
+async function tvManualSearch(sn){
+  const input=document.getElementById('tv-sinput-'+encodeKey(sn));
+  const query=(input&&input.value.trim())||sn;
+  const sta=document.getElementById('tv-status-'+encodeKey(sn));
+  if(sta) sta.textContent='⏳';
+  const r=await api('POST','/api/tv/search',{query});
+  if(r&&r.results&&r.results.length) populateTVSelect(sn,r.results);
+  else { if(sta) sta.textContent='✗'; addLogEntry({t:timeNow(),msg:`No results for: ${query}`,color:'red'}); }
+}
+
+async function tvLoadEpisodes(){
+  const matched=Object.entries(tvMatches);
+  if(!matched.length){addLogEntry({t:timeNow(),msg:'No shows matched yet',color:'red'});return;}
+  addLogEntry({t:timeNow(),msg:`Loading episodes for ${matched.length} shows…`,color:'cyan'});
+  for(const[sn,match] of matched){
+    const r=await api('GET',`/api/tv/episodes/${match.id}`);
+    if(r&&!r.error){
+      tvEpisodes[sn]=r;
+      const seasons=Object.keys(r.seasons).length;
+      addLogEntry({t:timeNow(),msg:`${match.name}: ${r.total} eps, ${seasons} seasons`,color:'green'});
+    }else{
+      addLogEntry({t:timeNow(),msg:`${match.name}: load failed`,color:'red'});
+    }
+    await new Promise(r=>setTimeout(r,80));
+  }
+  addLogEntry({t:timeNow(),msg:'Episodes loaded — ready to rename!',color:'green'});
+}
+
+async function tvRename(){
+  const dry=document.getElementById('tv-dry').checked;
+  const useAirdate=document.getElementById('tv-airdate').checked;
+  const useAbs=document.getElementById('tv-abs').checked;
+  let renamed=0, skipped=0, errors=0;
+  addLogEntry({t:timeNow(),msg:(dry?'[DRY RUN] ':'[LIVE] ')+'Starting TV rename…',color:'yellow'});
+  for(const[sn,data] of Object.entries(tvShows)){
+    const match=tvMatches[sn]; if(!match){skipped+=data.files.length;continue;}
+    const epData=tvEpisodes[sn]; if(!epData){skipped+=data.files.length;continue;}
+    const epMap={};
+    epData.episodes.forEach(ep=>{epMap[ep.season+'_'+ep.episode]={title:ep.title,airdate:ep.airdate};});
+    for(const f of data.files){
+      const det=detectEpJS(f.name);
+      if(!det){skipped++;continue;}
+      const [season,ep]=det;
+      const key=season+'_'+ep;
+      const info=epMap[key];
+      if(!info){skipped++;continue;}
+      const ext=f.name.split('.').pop();
+      const adTag=useAirdate&&info.airdate?` - [${info.airdate}]`:'';
+      let newName=`${match.name} - S${String(season).padStart(2,'0')}E${String(ep).padStart(3,'0')}${adTag} - ${info.title}.${ext}`;
+      newName=newName.replace(/[\\/*?:"<>|]/g,'');
+      if(dry){
+        addLogEntry({t:timeNow(),msg:`  → ${newName.slice(0,70)}`,color:'default'});
+        renamed++;
+      }else{
+        // In web mode, we'd call the API — for now just log
+        addLogEntry({t:timeNow(),msg:`  (live rename requires server-side call — use Python GUI)`,color:'yellow'});
+        renamed++;
+      }
+    }
+  }
+  document.getElementById('tv-stat-renamed').textContent=renamed;
+  document.getElementById('tv-stat-skipped').textContent=skipped;
+  document.getElementById('tv-stat-errors').textContent=errors;
+  addLogEntry({t:timeNow(),msg:`Done: ${renamed} renamed | ${skipped} skipped | ${errors} errors`,color:'cyan'});
+}
+
+// Simple JS episode detector for TV tab
+function detectEpJS(fname){
+  const m=fname.match(/[Ss](\d{1,2})[Ee](\d{1,4})/);
+  if(m) return[parseInt(m[1]),parseInt(m[2])];
+  const m2=fname.match(/(\d{1,2})[xX](\d{2,4})/);
+  if(m2) return[parseInt(m2[1]),parseInt(m2[2])];
+  return null;
+}
+
+// ═══════════════════════════════════
+//  CHARTS  (hand-rolled canvas, no deps)
+// ═══════════════════════════════════
+const tooltip=document.getElementById('chart-tooltip');
+
+function showTooltip(e,text){
+  tooltip.style.display='block';
+  tooltip.textContent=text;
+  tooltip.style.left=(e.clientX+14)+'px';
+  tooltip.style.top=(e.clientY-30)+'px';
+}
+function hideTooltip(){ tooltip.style.display='none'; }
+
+function getColors(){
+  return {
+    fg:   getCSSVar('--fg'),
+    fg2:  getCSSVar('--fg2'),
+    fg3:  getCSSVar('--fg3'),
+    bg3:  getCSSVar('--bg3'),
+    bg4:  getCSSVar('--bg4'),
+    green:getCSSVar('--green'),
+    red:  getCSSVar('--red'),
+    blue: getCSSVar('--blue'),
+    yellow:getCSSVar('--yellow'),
+    purple:getCSSVar('--purple'),
+    accent:getCSSVar('--accent2'),
+    cyan: getCSSVar('--cyan'),
+    border:getCSSVar('--border'),
+  };
+}
+
+function resizeCanvas(canvas){
+  const dpr=window.devicePixelRatio||1;
+  const rect=canvas.parentElement.getBoundingClientRect();
+  canvas.width=rect.width*dpr;
+  canvas.height=180*dpr;
+  canvas.style.width=rect.width+'px';
+  canvas.style.height='180px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  return {ctx,w:rect.width,h:180};
+}
+
+// Bar chart
+function drawBarChart(canvasId, labels, values, colors, tooltipFn){
+  const canvas=document.getElementById(canvasId);
+  if(!canvas) return;
+  const {ctx,w,h}=resizeCanvas(canvas);
+  const C=getColors();
+  ctx.clearRect(0,0,w,h);
+  if(!values.length){
+    ctx.fillStyle=C.fg3; ctx.font='12px DM Mono,monospace'; ctx.textAlign='center';
+    ctx.fillText('No data yet',w/2,h/2); return;
+  }
+  const max=Math.max(...values,1);
+  const pad=32, barGap=8;
+  const barW=(w-pad*2-(values.length-1)*barGap)/values.length;
+  // Grid lines
+  for(let i=0;i<=4;i++){
+    const y=pad+(h-pad*2)*(1-i/4);
+    ctx.strokeStyle=C.border; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(w-pad,y); ctx.stroke();
+    ctx.fillStyle=C.fg3; ctx.font='9px DM Mono,monospace'; ctx.textAlign='right';
+    ctx.fillText(Math.round(max*i/4),pad-4,y+3);
+  }
+  // Bars
+  const hitAreas=[];
+  values.forEach((v,i)=>{
+    const x=pad+i*(barW+barGap);
+    const bh=(v/max)*(h-pad*2);
+    const y=h-pad-bh;
+    const clr=Array.isArray(colors)?colors[i%colors.length]:colors;
+    // Glow
+    ctx.shadowColor=clr; ctx.shadowBlur=8;
+    const grad=ctx.createLinearGradient(0,y,0,y+bh);
+    grad.addColorStop(0,clr); grad.addColorStop(1,clr+'44');
+    ctx.fillStyle=grad; ctx.fillRect(x,y,barW,bh);
+    ctx.shadowBlur=0;
+    // Label
+    ctx.fillStyle=C.fg3; ctx.font='9px DM Mono,monospace'; ctx.textAlign='center';
+    ctx.fillText(labels[i].slice(0,8),x+barW/2,h-4);
+    // Value
+    if(v>0){ctx.fillStyle=clr; ctx.fillText(v,x+barW/2,y-4);}
+    hitAreas.push({x,y,w:barW,h:bh,label:labels[i],value:v});
+  });
+  // Mouse events
+  canvas._hitAreas=hitAreas;
+  canvas.onmousemove=e=>{
+    const rect=canvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    let hit=false;
+    for(const a of hitAreas){
+      if(mx>=a.x&&mx<=a.x+a.w&&my>=a.y&&my<=a.y+a.h){
+        showTooltip(e,(tooltipFn?tooltipFn(a):`${a.label}: ${a.value}`)); hit=true; break;
+      }
+    }
+    if(!hit) hideTooltip();
+  };
+  canvas.onmouseleave=()=>hideTooltip();
+}
+
+// Donut chart
+function drawDonutChart(canvasId, labels, values, colors){
+  const canvas=document.getElementById(canvasId);
+  if(!canvas) return;
+  const {ctx,w,h}=resizeCanvas(canvas);
+  const C=getColors();
+  ctx.clearRect(0,0,w,h);
+  const total=values.reduce((a,b)=>a+b,0);
+  if(!total){
+    ctx.fillStyle=C.fg3; ctx.font='12px DM Mono,monospace'; ctx.textAlign='center';
+    ctx.fillText('No data yet',w/2,h/2); return;
+  }
+  const cx=w*0.38, cy=h/2, r=Math.min(cx,cy)*0.85, innerR=r*0.55;
+  let angle=-Math.PI/2;
+  const slices=[];
+  values.forEach((v,i)=>{
+    if(!v) return;
+    const sweep=2*Math.PI*(v/total);
+    const clr=Array.isArray(colors)?colors[i%colors.length]:colors;
+    // Shadow
+    ctx.shadowColor=clr; ctx.shadowBlur=10;
+    ctx.beginPath();
+    ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,angle,angle+sweep); ctx.closePath();
+    ctx.fillStyle=clr; ctx.fill(); ctx.shadowBlur=0;
+    // Inner ring
+    ctx.beginPath(); ctx.arc(cx,cy,innerR,0,2*Math.PI); ctx.fillStyle=C.bg3; ctx.fill();
+    slices.push({startAngle:angle,endAngle:angle+sweep,label:labels[i],value:v,color:clr});
+    angle+=sweep;
+  });
+  // Center text
+  ctx.fillStyle=C.accent; ctx.font='bold 18px Playfair Display,serif'; ctx.textAlign='center';
+  ctx.fillText(total,cx,cy+7);
+  ctx.fillStyle=C.fg3; ctx.font='9px DM Mono,monospace';
+  ctx.fillText('total',cx,cy+20);
+  // Legend
+  const lx=w*0.6, ly0=h*0.15, rowH=18;
+  labels.forEach((lbl,i)=>{
+    if(!values[i]) return;
+    const clr=Array.isArray(colors)?colors[i%colors.length]:colors;
+    const y=ly0+i*rowH;
+    ctx.fillStyle=clr; ctx.beginPath(); ctx.arc(lx,y,5,0,2*Math.PI); ctx.fill();
+    ctx.fillStyle=C.fg2; ctx.font='10px DM Mono,monospace'; ctx.textAlign='left';
+    ctx.fillText(`${lbl.slice(0,10)}  ${values[i]}`,lx+12,y+3);
+  });
+  // Hover
+  canvas.onmousemove=e=>{
+    const rect=canvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left-cx, my=e.clientY-rect.top-cy;
+    const dist=Math.sqrt(mx*mx+my*my);
+    if(dist<r&&dist>innerR){
+      let a=Math.atan2(my,mx);
+      if(a<-Math.PI/2) a+=2*Math.PI;
+      for(const s of slices){
+        let sa=s.startAngle, ea=s.endAngle;
+        if(sa<-Math.PI/2){sa+=2*Math.PI;ea+=2*Math.PI;}
+        if(a>=sa&&a<=ea){showTooltip(e,`${s.label}: ${s.value} (${Math.round(s.value/total*100)}%)`);return;}
+      }
+    }
+    hideTooltip();
+  };
+  canvas.onmouseleave=()=>hideTooltip();
+}
+
+// Line chart
+function drawLineChart(canvasId, points, color){
+  const canvas=document.getElementById(canvasId);
+  if(!canvas) return;
+  const {ctx,w,h}=resizeCanvas(canvas);
+  const C=getColors();
+  ctx.clearRect(0,0,w,h);
+  if(!points.length){
+    ctx.fillStyle=C.fg3; ctx.font='12px DM Mono,monospace'; ctx.textAlign='center';
+    ctx.fillText('No scan data yet',w/2,h/2); return;
+  }
+  const pad=32;
+  const maxV=Math.max(...points.map(p=>p.v),1);
+  // Grid
+  for(let i=0;i<=4;i++){
+    const y=pad+(h-pad*2)*(1-i/4);
+    ctx.strokeStyle=C.border; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(w-pad,y); ctx.stroke();
+    ctx.fillStyle=C.fg3; ctx.font='9px DM Mono,monospace'; ctx.textAlign='right';
+    ctx.fillText(Math.round(maxV*i/4),pad-4,y+3);
+  }
+  // Line + area
+  const coords=points.map((p,i)=>({
+    x:pad+(w-pad*2)*(i/(Math.max(points.length-1,1))),
+    y:pad+(h-pad*2)*(1-p.v/maxV),
+    ...p
+  }));
+  const grad=ctx.createLinearGradient(0,pad,0,h-pad);
+  grad.addColorStop(0,color+'55'); grad.addColorStop(1,color+'00');
+  ctx.beginPath(); ctx.moveTo(coords[0].x,h-pad);
+  coords.forEach(c=>ctx.lineTo(c.x,c.y));
+  ctx.lineTo(coords[coords.length-1].x,h-pad); ctx.closePath();
+  ctx.fillStyle=grad; ctx.fill();
+  ctx.shadowColor=color; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.moveTo(coords[0].x,coords[0].y);
+  coords.forEach(c=>ctx.lineTo(c.x,c.y));
+  ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke(); ctx.shadowBlur=0;
+  // Dots
+  const hitAreas=[];
+  coords.forEach(c=>{
+    ctx.beginPath(); ctx.arc(c.x,c.y,4,0,2*Math.PI);
+    ctx.fillStyle=color; ctx.fill();
+    hitAreas.push({...c});
+  });
+  // Time labels
+  if(coords.length<=8){
+    coords.forEach(c=>{ctx.fillStyle=C.fg3; ctx.font='9px DM Mono,monospace'; ctx.textAlign='center'; ctx.fillText(c.t||'',c.x,h-4);});
+  }
+  canvas.onmousemove=e=>{
+    const rect=canvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left;
+    let closest=hitAreas[0], minDist=Infinity;
+    hitAreas.forEach(c=>{const d=Math.abs(c.x-mx); if(d<minDist){minDist=d;closest=c;}});
+    if(minDist<30&&closest) showTooltip(e,`${closest.t||''}: ${closest.v} f/s`);
+    else hideTooltip();
+  };
+  canvas.onmouseleave=()=>hideTooltip();
+}
+
+function drawAllCharts(){
+  const C=getColors();
+  // Results bar
+  const rLabels=chartData.results.map(r=>r.label);
+  const rValues=chartData.results.map(r=>r.value);
+  const statusColors={'full':C.green,'partial':C.purple,'no_sub':C.yellow,'no_audio':C.yellow,'no_english':C.red,'skipped':C.red,'failed':C.red};
+  const rColors=rLabels.map(l=>statusColors[l]||C.accent);
+  drawBarChart('chart-results',rLabels,rValues,rColors,a=>`${a.label}: ${a.value} files`);
+
+  // Scan rate line
+  drawLineChart('chart-scan-rate',chartData.scanRates.slice(-20),C.cyan);
+
+  // Status donut
+  const sLabels=Object.keys(chartData.statusCounts);
+  const sValues=sLabels.map(l=>chartData.statusCounts[l]);
+  const sColors=sLabels.map(l=>statusColors[l]||C.accent);
+  drawDonutChart('chart-status',sLabels,sValues,sColors);
+
+  // Tracks bar
+  const acom=status.audio_tracks?status.audio_tracks.filter(t=>t.common).length:0;
+  const apart=status.audio_tracks?status.audio_tracks.filter(t=>!t.common).length:0;
+  const scom=status.sub_tracks?status.sub_tracks.filter(t=>t.common).length:0;
+  const spart=status.sub_tracks?status.sub_tracks.filter(t=>!t.common).length:0;
+  drawBarChart('chart-tracks',
+    ['Audio (all)','Audio (part)','Sub (all)','Sub (part)'],
+    [acom,apart,scom,spart],
+    [C.green,C.purple,C.cyan,C.yellow],
+    a=>`${a.label}: ${a.value} track variants`);
+
+  // Summary
+  const total=(chartData.results||[]).reduce((a,r)=>a+r.value,0);
+  if(total){
+    const lines=chartData.results.map(r=>`${r.label.padEnd(12)}: ${r.value}`).join('\n');
+    document.getElementById('chart-summary').textContent=`Session totals:\n${lines}\n\nScan rate samples: ${chartData.scanRates.length}`;
+  }
+}
+
+// ═══════════════════════════════════
+//  LOG
+// ═══════════════════════════════════
+function timeNow(){return new Date().toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});}
+async function pollLog(){
+  const r=await api('GET',`/api/log?offset=${logOffset}`);
+  if(r&&r.entries.length){r.entries.forEach(addLogEntry);logOffset=r.offset;}
+}
+function addLogEntry(e){
+  const inner=document.getElementById('log-inner');
+  const div=document.createElement('div'); div.className='log-entry';
+  div.innerHTML=`<span class="log-time">${e.t||''}</span><span class="log-msg ${e.color||''}">${escHtml(e.msg)}</span>`;
+  inner.appendChild(div); inner.scrollTop=inner.scrollHeight;
+}
+function clearLog(){document.getElementById('log-inner').innerHTML='';logOffset=0;}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+// ═══════════════════════════════════
+//  POLL LOOP
+// ═══════════════════════════════════
+async function tick(){await Promise.all([refreshStatus(),pollLog()]);}
+setInterval(tick,800); tick();
+window.addEventListener('resize',()=>{
+  if(document.getElementById('tab-charts').classList.contains('active')) drawAllCharts();
+});
+</script>
+</body>
+</html>
